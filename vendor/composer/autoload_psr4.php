@@ -68,7 +68,7 @@ return array(
     'PhpParser\\' => array($vendorDir . '/nikic/php-parser/lib/PhpParser'),
     'PhpOption\\' => array($vendorDir . '/phpoption/phpoption/src/PhpOption'),
     'PhpOffice\\PhpSpreadsheet\\' => array($vendorDir . '/phpoffice/phpspreadsheet/src/PhpSpreadsheet'),
-    'PhpMqtt\\Client\\' => array($vendorDir . '/php-mqtt/client/src', $vendorDir . '/php-mqtt/laravel-client/src'),
+    'PhpMqtt\\Client\\' => array($vendorDir . '/php-mqtt/laravel-client/src', $vendorDir . '/php-mqtt/client/src'),
     'Opis\\Closure\\' => array($vendorDir . '/opis/closure/src'),
     'NunoMaduro\\Collision\\' => array($vendorDir . '/nunomaduro/collision/src'),
     'NotificationChannels\\OneSignal\\' => array($vendorDir . '/laravel-notification-channels/onesignal/src'),

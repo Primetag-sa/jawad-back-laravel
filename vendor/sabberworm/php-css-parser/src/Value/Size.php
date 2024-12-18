@@ -216,16 +216,14 @@ class Size extends PrimitiveValue
     }
 
     /**
-     * @param OutputFormat|null $oOutputFormat
-     *
      * @return string
      */
-    public function render($oOutputFormat)
+    public function render(OutputFormat $oOutputFormat)
     {
         $l = localeconv();
         $sPoint = preg_quote($l['decimal_point'], '/');
         $sSize = preg_match("/[\d\.]+e[+-]?\d+/i", (string)$this->fSize)
-            ? preg_replace("/$sPoint?0+$/", "", sprintf("%f", $this->fSize)) : (string)$this->fSize;
+            ? preg_replace("/$sPoint?0+$/", "", sprintf("%f", $this->fSize)) : $this->fSize;
         return preg_replace(["/$sPoint/", "/^(-?)0\./"], ['.', '$1.'], $sSize)
             . ($this->sUnit === null ? '' : $this->sUnit);
     }

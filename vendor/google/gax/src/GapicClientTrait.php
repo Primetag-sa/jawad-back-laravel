@@ -66,7 +66,7 @@ trait GapicClientTrait
     use GrpcSupportTrait;
 
     private ?TransportInterface $transport = null;
-    private ?HeaderCredentialsInterface $credentialsWrapper = null;
+    private ?CredentialsWrapper $credentialsWrapper = null;
     /** @var RetrySettings[] $retrySettings */
     private array $retrySettings = [];
     private string $serviceName = '';
@@ -287,24 +287,11 @@ trait GapicClientTrait
         $descriptors = require($options['descriptorsConfigPath']);
         $this->descriptors = $descriptors['interfaces'][$this->serviceName];
 
-        if (isset($options['apiKey'], $options['credentials'])) {
-            throw new ValidationException(
-                'API Keys and Credentials are mutually exclusive authentication methods and cannot be used together.'
-            );
-        }
-        // Set the credentialsWrapper
-        if (isset($options['apiKey'])) {
-            $this->credentialsWrapper = new ApiKeyHeaderCredentials(
-                $options['apiKey'],
-                $options['credentialsConfig']['quotaProject'] ?? null
-            );
-        } else {
-            $this->credentialsWrapper = $this->createCredentialsWrapper(
-                $options['credentials'],
-                $options['credentialsConfig'],
-                $options['universeDomain']
-            );
-        }
+        $this->credentialsWrapper = $this->createCredentialsWrapper(
+            $options['credentials'],
+            $options['credentialsConfig'],
+            $options['universeDomain']
+        );
 
         $transport = $options['transport'] ?: self::defaultTransport();
         $this->transport = $transport instanceof TransportInterface
@@ -313,8 +300,7 @@ trait GapicClientTrait
                 $options['apiEndpoint'],
                 $transport,
                 $options['transportConfig'],
-                $options['clientCertSource'],
-                $options['hasEmulator'] ?? false
+                $options['clientCertSource']
             );
     }
 
@@ -323,7 +309,6 @@ trait GapicClientTrait
      * @param string $transport
      * @param TransportOptions|array $transportConfig
      * @param callable $clientCertSource
-     * @param bool $hasEmulator
      * @return TransportInterface
      * @throws ValidationException
      */
@@ -331,8 +316,7 @@ trait GapicClientTrait
         string $apiEndpoint,
         $transport,
         $transportConfig,
-        callable $clientCertSource = null,
-        bool $hasEmulator = false
+        callable $clientCertSource = null
     ) {
         if (!is_string($transport)) {
             throw new ValidationException(
@@ -375,8 +359,6 @@ trait GapicClientTrait
                     );
                 }
                 $restConfigPath = $configForSpecifiedTransport['restClientConfigPath'];
-                $configForSpecifiedTransport['hasEmulator'] = $hasEmulator;
-
                 return RestTransport::build($apiEndpoint, $restConfigPath, $configForSpecifiedTransport);
             default:
                 throw new ValidationException(
@@ -533,7 +515,7 @@ trait GapicClientTrait
         Message $request = null,
         array $optionalArgs = []
     ) {
-        $methodDescriptors = $this->validateCallConfig($methodName);
+        $methodDescriptors =$this->validateCallConfig($methodName);
         $callType = $methodDescriptors['callType'];
 
         // Prepare request-based headers, merge with user-provided headers,
@@ -640,8 +622,9 @@ trait GapicClientTrait
      */
     private function createCallStack(array $callConstructionOptions)
     {
+        $quotaProject = $this->credentialsWrapper->getQuotaProject();
         $fixedHeaders = $this->agentHeader;
-        if ($quotaProject = $this->credentialsWrapper->getQuotaProject()) {
+        if ($quotaProject) {
             $fixedHeaders += [
                 'X-Goog-User-Project' => [$quotaProject]
             ];

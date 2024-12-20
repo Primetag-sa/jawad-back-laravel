@@ -34,7 +34,7 @@ function getSettingFirstData($type = null, $key = null)
     return Setting::where('type', $type)->where('key', $key)->first();
 }
 
-function getSingleMediaSettingImage($model = null, $collection_name, $check_collection_type = null)
+function getSingleMediaSettingImage($model = null, $collection_name= null, $check_collection_type = null)
 {
     $image = null;
     if ($model !== null) {
@@ -118,7 +118,7 @@ function appSettingData($type = 'get')
 }
 
 function json_message_response( $message, $status_code = 200)
-{	
+{
 	return response()->json( [ 'message' => $message ], $status_code );
 }
 
@@ -154,7 +154,7 @@ function saveRideHistory($data)
     // $mqtt_event = 'test_connection';
     $history_data = [];
     $sendTo = [];
-    
+
     $ride_request_id = $data['ride_request']->id;
     $ride_request = RideRequest::find($ride_request_id);
     switch ($data['history_type']) {
@@ -174,7 +174,7 @@ function saveRideHistory($data)
             ];
             $sendTo = removeValueFromArray(['admin', 'rider'], $user_type);
             break;
-        
+
         case 'no_drivers_available':
             # code...
             break;
@@ -206,7 +206,7 @@ function saveRideHistory($data)
             // $mqtt_event = 'ride_request_status';
             $sendTo = removeValueFromArray(['admin', 'rider'], $user_type);
             break;
-        
+
         // ride is in progress from the start to the end location
         case 'in_progress':
             $data['history_message'] = __('message.ride.in_progress');
@@ -217,10 +217,10 @@ function saveRideHistory($data)
             // $mqtt_event = 'ride_request_status';
             $sendTo = removeValueFromArray(['admin', 'rider'], $user_type);
             break;
-        
+
         case 'canceled':
             $data['history_message'] = __('message.ride.canceled');
-            
+
             if( $ride_request->cancel_by == 'auto' ) {
                 $history_data = [
                     'cancel_by' => $ride_request->cancel_by,
@@ -246,13 +246,13 @@ function saveRideHistory($data)
                     'driver_name' => optional($ride_request->driver)->display_name ?? '',
                 ];
             }
-            
+
             if ($ride_request->driver_id) {
                 $ride_request->driver->update(['is_available' => 1]);
             } elseif ($ride_request->riderequest_in_driver) {
                 $ride_request->riderequest_in_driver->update(['is_available' => 1]);
             }
-            
+
             // $mqtt_event = 'ride_request_status';
             $sendTo = removeValueFromArray(['admin', 'rider', 'driver'], $user_type);
             break;
@@ -275,7 +275,7 @@ function saveRideHistory($data)
             ];
             $sendTo = removeValueFromArray(['admin', 'driver'], $user_type);
             break;
-        
+
         case 'completed':
             $data['history_message'] = __('message.ride.completed');
             $history_data = [
@@ -315,7 +315,7 @@ function saveRideHistory($data)
             'rider_id' => $ride_request->rider_id,
             'driver_id' => $ride_request->driver_id,
         ];
-    
+
         $notify_data = new \stdClass();
         $notify_data->success = true;
         $notify_data->success_type = $data['history_type'];
@@ -348,13 +348,13 @@ function saveRideHistory($data)
                                 'rider_id' => $ride_request->rider_id,
                                 'status' => $ride_request->status,
                             ];
-                
+
                             if ($ride_request->status == 'completed') {
                                 $rideData['payment_status'] = $ride_request->payment->payment_status;
                                 $rideData['payment_type'] = $ride_request->payment->payment_type;
                                 $rideData['tips'] = $ride_request->tips ? 1 : 0;
                                 $firebaseData->set($rideData, ['merge' => true]);
-                
+
                                 if ($ride_request->payment->payment_status == 'paid') {
                                     sleep(3);
                                     $firebaseData->delete();
@@ -368,13 +368,13 @@ function saveRideHistory($data)
                                 $rideData['tips'] = 0;
                                 $firebaseData->set($rideData);
                             }
-               
+
                         } catch (\Exception $e) {
                             \Log::error('Error updating Firestore document for Ride - 317: ' . $e->getMessage());
-                        } 
+                        }
                     }
                 }
-                $user->notify(new RideNotification($notification_data)); 
+                $user->notify(new RideNotification($notification_data));
             }
             $user->notify(new CommonNotification($notification_data['type'], $notification_data));
 
@@ -912,7 +912,7 @@ function km_to_mile($km) {
 }
 
 function mighty_get_distance_matrix_result($pick_lat, $pick_lng, $drop_lat, $drop_lng, $drop_location) {
-    
+
     $result = collect($drop_location)->map(function ($item, $index) use ($pick_lng, $drop_lat, $drop_lng, $drop_location) {
         if ($index == 0) {
             return $pick_latlong . '|' . $item['latitude'] . ',' . $item['longitude'];
@@ -927,11 +927,11 @@ function mighty_get_distance_matrix_result($pick_lat, $pick_lng, $drop_lat, $dro
 
 function mighty_get_distance_matrix($pick_lat, $pick_lng, $drop_lat, $drop_lng, $traffic = false) {
     $google_map_api_key = env('GOOGLE_MAP_KEY');
-        
+
     $response = Http::withHeaders([
         'Accept-Language' => request('language'),
     ])->get('https://maps.googleapis.com/maps/api/distancematrix/json?origins='.$pick_lat.','.$pick_lng.'&destinations='.$drop_lat.','.$drop_lng.'&key='.$google_map_api_key.'&mode=driving');
-    
+
     $responses = $response->json();
 
     return $responses;
@@ -975,13 +975,13 @@ function first_element_in_distance_matrix($distance_matrix)
 function calculateRideFares($distance_in_unit, $dropoff_time_in_seconds, $service, $coupon = null)
 {
     $time_price = 0;
-    
+
     $distance_unit = $service['distance_unit'] ?? 'km';
     $minimum_distance =  $service['minimum_distance'] ?? 0;
     if( $distance_unit == 'mile' ) {
         $distance_in_unit = km_to_mile($distance_in_unit);
     }
-    
+
     $base_fare = $service['base_fare'];
     // distance_in_unit in km
     $time_price = ($dropoff_time_in_seconds / 60) * $service['per_minute_drive'];
@@ -994,7 +994,7 @@ function calculateRideFares($distance_in_unit, $dropoff_time_in_seconds, $servic
 
     // addition of base fare and distance price
     $base_and_distance_price = ($base_fare + $distance_price);
-    
+
     $total_amount = $base_and_distance_price + $time_price;
 
     if( $total_amount < $service['minimum_fare'] ){
@@ -1073,7 +1073,7 @@ function calculate_distance($lat1, $lng1, $lat2, $lng2, $unit)
 function SettingData($type, $key = null)
 {
     $setting = Setting::where('type',$type);
-   
+
     $setting->when($key != null, function ($q) use($key) {
         return $q->where('key', $key);
     });
@@ -1090,13 +1090,13 @@ function getPriceFormat($price)
     if($price === null){
         $price = 0;
     }
-    
+
     $currency_code = SettingData('CURRENCY', 'CURRENCY_CODE') ?? 'USD';
     $currecy = currencyArray($currency_code);
 
     $code = $currecy['symbol'] ?? '$';
     $position = SettingData('CURRENCY', 'CURRENCY_POSITION') ?? 'left';
-    
+
     if ($position == 'left') {
         $price = $code."".number_format( (float) $price,2,'.','');
     } else {

@@ -67,7 +67,7 @@ Route::group(['middleware' => ['auth:sanctum']], function () {
     Route::post('admin-sos-notify', [ API\SosController::class, 'adminSosNotify'] );
 
     Route::post('save-ride-rating', [ API\RideRequestController::class, 'rideRating'] );
-    
+
     Route::post('save-payment', [ API\PaymentController::class, 'paymentSave'] );
 
     Route::get('withdrawrequest-list', [ API\WithdrawRequestController::class, 'getList'] );
@@ -87,15 +87,18 @@ Route::group(['middleware' => ['auth:sanctum']], function () {
     Route::get('current-riderequest', [ API\DashboardController::class, 'currentRideRequest'] );
 
     Route::post('earning-list', [ API\PaymentController::class, 'DriverEarningList'] );
-    
+
     Route::post('update-profile', [ API\UserController::class, 'updateProfile']);
     Route::post('change-password',[ API\UserController::class, 'changePassword']);
     Route::post('update-user-status', [ API\UserController::class, 'updateUserStatus']);
-    
+
     Route::post('delete-user-account', [ API\UserController::class, 'deleteUserAccount']);
 
     Route::get('additional-fees-list', [ API\AdditionalFeesController::class, 'getList'] );
     Route::get('logout',[ API\UserController::class, 'logout']);
+
+    Route::post('resend-otp', [ API\UserController::class. 'resendOtp']);
+    Route::post('verify-otp', [ API\UserController::class. 'verifyOtp']);
 
     Route::post('setting-upload-image', [App\Http\Controllers\SettingController::class, 'settingUploadImage']);
     Route::post('save-setting', [ App\Http\Controllers\SettingController::class, 'settingUpdate'] );

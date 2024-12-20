@@ -16,13 +16,14 @@ use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Auth;
 use App\Http\Requests\DriverRequest;
+use App\Services\TwilioService;
 
 class UserController extends Controller
 {
     public function register(UserRequest $request)
     {
         $input = $request->all();
-                
+
         $password = $input['password'];
         $input['user_type'] = isset($input['user_type']) ? $input['user_type'] : 'rider';
         $input['password'] = Hash::make($password);
@@ -44,6 +45,7 @@ class UserController extends Controller
         $message = __('message.save_form',['form' => __('message.'.$input['user_type']) ]);
         $user->api_token = $user->createToken('auth_token')->plainTextToken;
         $user->profile_image = getSingleMedia($user, 'profile_image', null);
+        (new TwilioService())->sendOtp($user->contact_number);
         $response = [
             'message' => $message,
             'data' => $user
@@ -69,7 +71,7 @@ class UserController extends Controller
         if( $request->has('user_detail') && $request->user_detail != null ) {
             $user->userDetail()->create($request->user_detail);
         }
-        
+
         if( $request->has('user_bank_account') && $request->user_bank_account != null ) {
             $user->userBankAccount()->create($request->user_bank_account);
         }
@@ -79,6 +81,9 @@ class UserController extends Controller
         $user->api_token = $user->createToken('auth_token')->plainTextToken;
         $user->is_verified_driver = (int) $user->is_verified_driver;// DriverDocument::verifyDriverDocument($user->id);
         $user->profile_image = getSingleMedia($user, 'profile_image', null);
+
+        (new TwilioService())->sendOtp($user->contact_number);
+
         $response = [
             'message' => $message,
             'data' => $user
@@ -86,10 +91,39 @@ class UserController extends Controller
         return json_custom_response($response);
     }
 
+    public function verifyOtp(Request $request)
+    {
+        $request->validate([
+            'otp' => 'required',
+        ]);
+        $user = Auth::user();
+        $verify = (new TwilioService())->verifyOtp($request->otp_code, $user->contact_number);
+        if($verify) {
+            $user->update([
+                'otp_verify_at' => now()
+            ]);
+        } else {
+            $message = __('auth.invalid_otp');
+            return json_message_response($message,400);
+        }
+    }
+
+    public function resendOtp(Request $request)
+    {
+        $request->validate([
+            'contact_number' => 'required|exists:users,contact_number',
+        ]);
+
+        (new TwilioService())->sendOtp($request->contact_number);
+
+        $message = "Otp Sent";
+        return json_message_response($message,200);
+    }
+
     public function login(Request $request)
-    {      
+    {
         if(Auth::attempt(['email' => request('email'), 'password' => request('password'), 'user_type' => request('user_type')])){
-            
+
             $user = Auth::user();
 
             if( $user->status == 'banned' ) {
@@ -106,7 +140,7 @@ class UserController extends Controller
             }
             $user->last_actived_at = now();
             $user->save();
-            
+
             $success = $user;
             $success['api_token'] = $user->createToken('auth_token')->plainTextToken;
             $success['profile_image'] = getSingleMedia($user,'profile_image',null);
@@ -121,7 +155,7 @@ class UserController extends Controller
         }
         else{
             $message = __('auth.failed');
-            
+
             return json_message_response($message,400);
         }
     }
@@ -129,9 +163,9 @@ class UserController extends Controller
     public function userList(Request $request)
     {
         $user_type = isset($request['user_type']) ? $request['user_type'] : 'rider';
-        
+
         $user_list = User::query();
-        
+
         $user_list->when(request('user_type'), function ($q) use($user_type) {
             return $q->where('user_type', $user_type);
         });
@@ -144,7 +178,7 @@ class UserController extends Controller
         {
             $user_list = $user_list->where('is_online',request('is_online'));
         }
-        
+
         if( $request->has('status') && isset($request->status) )
         {
             $user_list = $user_list->where('status',request('status'));
@@ -160,7 +194,7 @@ class UserController extends Controller
                 $per_page = $user_list->count();
             }
         }
-        
+
         $user_list = $user_list->paginate($per_page);
 
         if( $user_type == 'driver' ) {
@@ -173,7 +207,7 @@ class UserController extends Controller
             'pagination' => json_pagination_response($items),
             'data' => $items,
         ];
-        
+
         return json_custom_response($response);
     }
 
@@ -185,7 +219,7 @@ class UserController extends Controller
         if(empty($user))
         {
             $message = __('message.user_not_found');
-            return json_message_response($message,400);   
+            return json_message_response($message,400);
         }
 
         $response = [
@@ -214,9 +248,9 @@ class UserController extends Controller
 
         if($user == "") {
             $message = __('message.user_not_found');
-            return json_message_response($message,400);   
+            return json_message_response($message,400);
         }
-           
+
         $hashedPassword = $user->password;
 
         $match = Hash::check($request->old_password, $hashedPassword);
@@ -232,7 +266,7 @@ class UserController extends Controller
 			$user->fill([
                 'password' => Hash::make($request->new_password)
             ])->save();
-            
+
             $message = __('message.password_change');
             return json_message_response($message,200);
         }
@@ -244,7 +278,7 @@ class UserController extends Controller
     }
 
     public function updateProfile(UserRequest $request)
-    {   
+    {
         $user = Auth::user();
         if($request->has('id') && !empty($request->id)){
             $user = User::where('id',$request->id)->first();
@@ -261,19 +295,19 @@ class UserController extends Controller
         }
 
         $user_data = User::find($user->id);
-        
+
         if($user_data->userDetail != null && $request->has('user_detail') ) {
             $user_data->userDetail->fill($request->user_detail)->update();
         } else if( $request->has('user_detail') && $request->user_detail != null ) {
             $user_data->userDetail()->create($request->user_detail);
         }
-        
+
         if($user_data->userBankAccount != null && $request->has('user_bank_account')) {
             $user_data->userBankAccount->fill($request->user_bank_account)->update();
         } else if( $request->has('user_bank_account') && $request->user_bank_account != null ) {
             $user_data->userBankAccount()->create($request->user_bank_account);
         }
-        
+
         $message = __('message.updated');
         // $user_data['profile_image'] = getSingleMedia($user_data,'profile_image',null);
         unset($user_data['media']);
@@ -319,7 +353,7 @@ class UserController extends Controller
             ? response()->json(['message' => __($response), 'status' => true], 200)
             : response()->json(['message' => __($response), 'status' => false], 400);
     }
-    
+
     public function socialLogin(Request $request)
     {
         $input = $request->all();
@@ -329,7 +363,7 @@ class UserController extends Controller
         } else {
             $user_data = User::where('email',$input['email'])->first();
         }
-        
+
         if( $user_data != null ) {
             if( !in_array($user_data->user_type, ['admin',request('user_type')] )) {
                 $message = __('auth.failed');
@@ -340,7 +374,7 @@ class UserController extends Controller
                 $message = __('message.account_banned');
                 return json_message_response($message,400);
             }
-        
+
             if( !isset($user_data->login_type) || $user_data->login_type  == '' )
             {
                 if($request->login_type === 'google')
@@ -370,7 +404,7 @@ class UserController extends Controller
                 ];
                 return json_custom_response($otp_response);
             }
-            
+
             $validator = Validator::make($input,[
                 'email' => 'required|email|unique:users,email',
                 'username'  => 'required|unique:users,username',
@@ -383,7 +417,7 @@ class UserController extends Controller
                     'message' => $validator->errors()->first(),
                     'all_message' =>  $validator->errors()
                 ];
-    
+
                 return json_custom_response($data, 422);
             }
 
@@ -421,7 +455,7 @@ class UserController extends Controller
     public function updateUserStatus(Request $request)
     {
         $user_id = $request->id ?? auth()->user()->id;
-        
+
         $user = User::where('id',$user_id)->first();
 
         if($user == "") {
@@ -456,7 +490,7 @@ class UserController extends Controller
         if($request->has('otp_verify_at')) {
             $user->otp_verify_at = $request->otp_verify_at;
         }
-        
+
         if($request->is_online == 1) {
             $user->is_available = 1;
         }
@@ -509,7 +543,7 @@ class UserController extends Controller
             $user->delete();
             $message = __('message.account_deleted');
         }
-        
+
         return json_custom_response(['message'=> $message, 'status' => true]);
     }
 }
